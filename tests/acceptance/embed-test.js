@@ -29,6 +29,26 @@ function waitFor(
   });
 }
 
+function waitForGone(
+  selector,
+  { timeout = 1000, delay = 10, doc = document } = {}
+) {
+  return new Promise((resolve, reject) => {
+    const deadline = Date.now() + timeout;
+    const check = () => {
+      if (!doc.querySelector(selector)) {
+        resolve();
+      } else if (Date.now() > deadline) {
+        reject(new Error(`${selector} still present after ${timeout} ms`));
+      } else {
+        setTimeout(check, delay);
+      }
+    };
+
+    check();
+  });
+}
+
 module('Acceptance | embed', function (hooks) {
   hooks.before(function () {
     // Remove styles for leaking styles test.
@@ -245,6 +265,58 @@ module('Acceptance | embed', function (hooks) {
         ),
         { foo: 'bar' }
       );
+    });
+  });
+
+  module('skeleton', function () {
+    // No liquid-fire outlet here, so removal waits for the 3 s grace period.
+    const SKELETON = '.candid-embed-skeleton';
+
+    // Opacity of the skeleton's sibling that holds the rendered app.
+    function appOpacity(title) {
+      const skeleton = title.getRootNode().querySelector(SKELETON);
+      const app = Array.from(skeleton.parentNode.children).find((child) =>
+        child.contains(title)
+      );
+      return getComputedStyle(app).opacity;
+    }
+
+    test('is shown while loading and removed once the app renders', async function (assert) {
+      const ce = document.createElement('dummy-app');
+      document.querySelector('#ember-testing').appendChild(ce);
+
+      assert.dom(`dummy-app ${SKELETON}`).exists();
+
+      await waitFor('dummy-app .title');
+      assert.strictEqual(
+        appOpacity(ce.querySelector('.title')),
+        '0',
+        'app is hidden behind the skeleton'
+      );
+      await waitForGone(`dummy-app ${SKELETON}`, { timeout: 6000 });
+
+      assert.dom(`dummy-app ${SKELETON}`).doesNotExist();
+      assert.dom('dummy-app .title').hasText('Welcome to Ember');
+    });
+
+    test('is shown and removed inside the shadow root', async function (assert) {
+      const ce = document.createElement('dummy-app');
+      ce.setAttribute('shadow', '');
+      document.querySelector('#ember-testing').appendChild(ce);
+
+      const shadowRoot = ce.shadowRoot;
+      assert.dom(SKELETON, shadowRoot).exists();
+
+      await waitFor('.title', { doc: shadowRoot });
+      assert.strictEqual(
+        appOpacity(shadowRoot.querySelector('.title')),
+        '0',
+        'app is hidden behind the skeleton'
+      );
+      await waitForGone(SKELETON, { timeout: 6000, doc: shadowRoot });
+
+      assert.dom(SKELETON, shadowRoot).doesNotExist();
+      assert.dom('.title', shadowRoot).hasText('Welcome to Ember');
     });
   });
 
