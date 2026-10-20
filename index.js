@@ -23,7 +23,8 @@ module.exports = {
 
   config(env, baseConfig) {
     this._rootURL = baseConfig.rootURL;
-    this._isAddonDisabled = baseConfig['ember-embedded-snippet'].disabled ?? false;
+    this._isAddonDisabled =
+      baseConfig['ember-embedded-snippet']?.disabled ?? false;
   },
 
   _process(appTree) {
